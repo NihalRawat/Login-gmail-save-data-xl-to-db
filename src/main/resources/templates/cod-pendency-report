@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>COD Pendency Report</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .zone-header {
+            background-color: #e6f7ff;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>COD Pendency Report</h1>
+    
+    <form method="get" th:action="@{/reports/cod-pendency}">
+        <label for="zone">Select Zone:</label>
+        <select name="zone" id="zone">
+            <option value="">All Zones</option>
+            <option th:each="zone : ${zones}" 
+                    th:value="${zone}" 
+                    th:text="${zone}"
+                    th:selected="${zone == selectedZone}"></option>
+        </select>
+        <button type="submit">Filter</button>
+    </form>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Location</th>
+                <th>COD pendency as per InstaKart</th>
+                <th>COD deposited reported on Dependo COD portal</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="report : ${reports}">
+                <td th:text="${report.location}"></td>
+                <td th:text="${report.codPendencyInstaKart}"></td>
+                <td th:text="${report.codDepositedDependo}"></td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>
