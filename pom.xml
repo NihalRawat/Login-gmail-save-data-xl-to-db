@@ -12,7 +12,7 @@
 	<artifactId>cod-onetouch-1</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>cod-onetouch-1</name>
-	<description>onetouch code upload backend API for hub or branch master</description>
+	<description>qanawat code upload backend API for hub or branch master</description>
 
 	<properties>
 		<java.version>1.8</java.version>
@@ -23,6 +23,13 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
+		<!--				
+		<dependency>
+			<groupId>com.sun.mail</groupId>
+			<artifactId>jakarta.mail</artifactId>
+			<version>2.0.1</version>
+		</dependency>
+		-->
 		<dependency>
 			<groupId>com.sun.mail</groupId>
 			<artifactId>javax.mail</artifactId>
@@ -45,11 +52,7 @@
 			<artifactId>gson</artifactId>
 			<version>2.10.1</version>
 		</dependency>
-		<dependency>
-			<groupId>com.sun.mail</groupId>
-			<artifactId>javax.mail</artifactId>
-			<version>1.6.2</version>
-		</dependency>
+		
 
 		<dependency>
 			<groupId>org.apache.poi</groupId>
@@ -155,6 +158,7 @@
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		
 	</dependencies>
 
 	<build>

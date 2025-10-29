@@ -1,5 +1,7 @@
 package com.atpl.entity;
 
+import java.time.LocalDateTime;
+
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -28,4 +30,5 @@ public class TblExcelTransaction {
     private String productId;
     private String msisdn;
     private Double fee;
+    private LocalDateTime processedDate;
 }

@@ -12,12 +12,12 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @EnableAsync
 @EnableScheduling
-public class CodOnetouch1Application {
+public class QanawatSaveMailToDBApplication {
 
 	public static void main(String[] args) {
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"));
 
-		SpringApplication.run(CodOnetouch1Application.class, args);
+		SpringApplication.run(QanawatSaveMailToDBApplication.class, args);
 	}
 
 }

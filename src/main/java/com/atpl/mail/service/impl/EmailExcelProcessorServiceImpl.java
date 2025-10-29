@@ -9,6 +9,7 @@ import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
@@ -46,6 +47,7 @@ import org.springframework.stereotype.Service;
 import com.atpl.entity.TblExcelTransaction;
 import com.atpl.mail.service.EmailExcelProcessorService;
 import com.atpl.repository.ExcelTransactionRepository;
+import com.atpl.utility.HelperExtension;
 
 @Service
 public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorService {
@@ -56,7 +58,7 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 	@Autowired
 	private ExcelTransactionRepository excelTransactionRepository;
 
-	@Value("${spring.username}")
+	@Value("${spring.mail.username}")
 	private String username2;
 
 	@Value("${spring.password}")
@@ -70,8 +72,6 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 	@Value("${POP_PROTOCOl}")
 	private String protocol;
 
-	@Value("${spring.username}")
-	private String username;
 
 	@Value("${spring.password}")
 	private String password;
@@ -86,21 +86,33 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 	
 	@Value("${spring.excel.sheet.name}")
 	private String excelSheetName;
+	
+	@Value("${max.emails.to.check}")
+	private int maxEmailsToChecks;
 
 	@Override
 	public void downloadAndProcessAttachment() {
 		Properties properties = new Properties();
 		properties.put("mail.store.protocol", protocol);
-		properties.put("mail.pop3s.host", host2);
-		properties.put("mail.pop3s.port", port2);
-		properties.put("mail.pop3s.ssl.enable", "true");
-
+		 if (protocol.equalsIgnoreCase("imaps")) {
+		        // Gmail IMAP configuration
+		        properties.put("mail.imaps.host", host2);
+		        properties.put("mail.imaps.port", port2);		
+		        properties.put("mail.imaps.ssl.enable", "true");
+		    } else {
+		        // POP3 (old altruist server)
+		        properties.put("mail.pop3s.host", host2);
+		        properties.put("mail.pop3s.port", port2);
+		        properties.put("mail.imaps.ssl.enable", "true");
+		    }
+		 
 		boolean mailProcessed = false;
 		Store store = null;
 		Folder emailFolder = null;
 
 		try {
-			Session emailSession = Session.getDefaultInstance(properties);
+//			Session emailSession = Session.getDefaultInstance(properties);
+			Session emailSession = Session.getInstance(properties);
 			store = emailSession.getStore(protocol);
 			store.connect(host2, username2, password2);
 
@@ -115,17 +127,12 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 			// Fix date format to match email subject format
 			SimpleDateFormat sdf = new SimpleDateFormat("d MMM yyyy"); // 'd' avoids leading zero
 			String todayDate = sdf.format(new Date());
-//			String expectedSubject = "ODH COD Pendency " + todayDate + " - DEPENDO";
 
-//Pattern pattern = Pattern.compile(
-//					"(?i)\\s*(FW:|Fwd:|RE:)?\\s*ODH COD Pendency \\d{1,2}(st|nd|rd|th)? \\w+ \\d{4} - DEPENDO");
-			
 			// Subject pattern for DSDP data emails from qanawat
-//			Pattern pattern = Pattern.compile("(?i)(FW:|Fwd:)?\\s*\\[dcb\\.support@qanawat-me\\.com\\]\\s*(FW:|Fwd:)?\\s*DSDP data");
 			Pattern pattern = Pattern.compile("(?i).*DSDP\\s*data.*");
 
 			
-			int maxEmailsToCheck = 50; // Check last 20 emails
+			int maxEmailsToCheck = maxEmailsToChecks;; // Check last 50 emails
 			int start = Math.max(0, messages.length - maxEmailsToCheck);
 
 			for (int i = messages.length - 1; i >= start; i--) {
@@ -148,7 +155,7 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 				}
 				System.out.println("sentDate"+sentDate);
 				if (sentDate == null || !isToday(sentDate)) {
-//					System.out.println("continue sentDate"+sentDate);
+					System.out.println("continue sentDate"+sentDate);
 					continue; // Skip if not today's mail
 				}
 
@@ -162,18 +169,21 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 				// Process multipart email
 				if (message.isMimeType("multipart/*")) {
 					Multipart multipart = (Multipart) message.getContent();
-
-					System.out.println("multipart found"+subject);
+//					int totalExcelAttachments = multipart.getCount();					
+//					int totalExcelAttachments=countValidAttachmentInExcel(multipart,totalParts);					 
+//					System.out.println("Total Attachment in mail "+totalExcelAttachments);
+					System.out.println("multipart found"+subject);					
 					for (int j = 0; j < multipart.getCount(); j++) {
+						String generateAlphaCode=HelperExtension.generateShortCode(3);
 					    BodyPart bodyPart = multipart.getBodyPart(j);
-					    String fileName = bodyPart.getFileName();
-					    System.out.println("filename"+fileName);
+					    String fileName = j+"_"+generateAlphaCode+"_"+bodyPart.getFileName();
+					    System.out.println("filename "+fileName);
+					    String disposition = bodyPart.getDisposition();
 					    if (!mailProcessed &&
-					        Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) &&
+					    (disposition == null || Part.ATTACHMENT.equalsIgnoreCase(disposition)) &&
 					        fileName != null &&
 					        fileName.toLowerCase().endsWith(".xlsx") &&
-					        fileName.toLowerCase().contains(excelSheetName)) {
-
+					        fileName.toLowerCase().contains(excelSheetName)) {					    	
 					        File savedFile = new File(excelPath + fileName);
 					        System.out.println("Downloading Attachment: " + fileName);
 
@@ -193,11 +203,19 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 					            saveExcelData(workbook);
 					        }
 
-					        System.out.println("Attachment processed successfully.");
-					        mailProcessed = true;
-					        break; // ✅ Exit attachment loop
+					        System.out.println("Attachment processed successfully.");					        
+					        
+				            // ✅ Mark mail processed after last Excel attachment only
+//				            if (processedCount == totalExcelAttachments) {
+//					            mailProcessed = true;
+//					            System.out.println("📬 Last attachment processed. Mail marked as processed.");
+//						        break; // ✅ Process all the file's in attachement
+//					        }
+
 					    }
 					}
+					 mailProcessed = true;
+			        System.out.println("📬 Last attachment processed. Mail marked as processed.");
 
 				}
 
@@ -228,7 +246,30 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 
 		if (!mailProcessed) {
 			sendNoMailAlert(username2, password2);
+			System.err.println("Process finished succesfully----------");
 		}
+	}
+	
+	private int countValidAttachmentInExcel(Multipart multipart,int totalParts) {
+		 // Count only valid Excel attachments first
+		
+		int totalExcelAttachments = 0;
+		try {						    
+	    for (int j = 0; j < totalParts; j++) {
+	        BodyPart part = multipart.getBodyPart(j);
+	        String fileName = part.getFileName();
+	        if (fileName != null &&
+	            Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition()) &&
+	            fileName.toLowerCase().endsWith(".xlsx") &&
+	            fileName.toLowerCase().contains(excelSheetName)) {
+	            totalExcelAttachments++;
+	        }
+	    }
+		}catch(Exception e) {
+			e.printStackTrace();			
+		}
+		
+	    return totalExcelAttachments;
 	}
 
 	private void sendNoMailAlert(String fromEmail, String password) {
@@ -308,6 +349,7 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 	                    .productId(productId)
 	                    .msisdn(msisdn)
 	                    .fee(fee)
+	                    .processedDate(LocalDateTime.now())
 	                    .build();
 
 	            records.add(record);

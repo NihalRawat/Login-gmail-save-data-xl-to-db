@@ -16,6 +16,7 @@ public class ScheduledTask {
 	
 	
 
+//	@Scheduled(cron = "0 0 2 * * *")
 	@Scheduled(cron = "*/30 * * * * *")
 	public void scheduleFlipkartReport() {
 		emailExcelProcessorService.downloadAndProcessAttachment();
