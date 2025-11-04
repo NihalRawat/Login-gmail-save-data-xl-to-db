@@ -14,12 +14,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "tbl_excel_transaction")
+@Table(name = "tbl_dsdp_billing_transaction")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TblExcelTransaction {
+public class TblDsdpBillingTransaction {
 
 	@Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -44,7 +44,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.atpl.entity.TblExcelTransaction;
+import com.atpl.entity.TblDsdpBillingTransaction;
 import com.atpl.mail.service.EmailExcelProcessorService;
 import com.atpl.repository.ExcelTransactionRepository;
 import com.atpl.utility.HelperExtension;
@@ -89,6 +89,9 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 	
 	@Value("${max.emails.to.check}")
 	private int maxEmailsToChecks;
+	
+//	@Value("${folderPath}")
+//	private String folderPath;
 
 	@Override
 	public void downloadAndProcessAttachment() {
@@ -115,10 +118,15 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 			Session emailSession = Session.getInstance(properties);
 			store = emailSession.getStore(protocol);
 			store.connect(host2, username2, password2);
-
-			emailFolder = store.getFolder("INBOX");
-//			Folder teamMemberFolder = emailFolder.getFolder("Team-Members");
-//			Folder gitishFolder = teamMemberFolder.getFolder("Gitish");
+			getAllFolders(store);//print all the available folders
+//			emailFolder = store.getFolder("INBOX");
+			// If want found, try alternative paths		
+			
+		    emailFolder = store.getFolder("Sent Mail");		    
+		    // If still not found, try other common variations
+		    if (!emailFolder.exists()) {
+		        emailFolder = store.getFolder("[Gmail]/Sent Mail");
+		    }
 			emailFolder.open(Folder.READ_ONLY);
 
 			Message[] messages = emailFolder.getMessages();
@@ -250,6 +258,23 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 		}
 	}
 	
+	private void getAllFolders(Store store) throws MessagingException {
+		Folder defaultFolder = store.getDefaultFolder();
+		Folder[] folders = defaultFolder.list("*");
+
+		System.out.println("Available folders:");
+		for (Folder folder : folders) {
+		    System.out.println("- " + folder.getFullName());
+		    
+		    // List subfolders
+		    if ((folder.getType() & Folder.HOLDS_FOLDERS) != 0) {
+		        Folder[] subFolders = folder.list();
+		        for (Folder subFolder : subFolders) {
+		            System.out.println("  └─ " + subFolder.getFullName());
+		        }
+		    }
+		}
+	}
 	private int countValidAttachmentInExcel(Multipart multipart,int totalParts) {
 		 // Count only valid Excel attachments first
 		
@@ -317,14 +342,29 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 
 		return LocalDate.now().equals(mailDate);
 	}
-
+	private void printHeaderFromExcelSheet(Sheet sheet) {
+		try {
+			Row headerRow = sheet.getRow(0);
+			if (headerRow != null) {
+			    // Loop through all cells in the header row
+			    for (int cellNum = 0; cellNum < headerRow.getLastCellNum(); cellNum++) {
+			        String header = getCellValue(headerRow.getCell(cellNum));
+			        System.out.print(header + " | ");
+			    }
+			    System.out.println(); // New line after headers
+			}
+		}catch(Exception e) {
+			e.printStackTrace();
+		}
+	}
 
 	@Transactional
 	public void saveExcelData(Workbook workbook) {
 	    try {
 	        Sheet sheet = workbook.getSheetAt(0);
-	        List<TblExcelTransaction> records = new ArrayList<>();
-
+	        List<TblDsdpBillingTransaction> records = new ArrayList<>();
+	        //print header's 
+	        printHeaderFromExcelSheet(sheet);
 	        // Skip header row, start from row 1
 	        for (int rowNum = 1; rowNum <= sheet.getLastRowNum(); rowNum++) {
 	            Row row = sheet.getRow(rowNum);
@@ -343,7 +383,7 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 	                fee = Double.parseDouble(feeStr);
 	            } catch (NumberFormatException ignored) {}
 
-	            TblExcelTransaction record = TblExcelTransaction.builder()
+	            TblDsdpBillingTransaction record = TblDsdpBillingTransaction.builder()
 	                    .timestamp(timestamp)
 	                    .serviceId(serviceId)
 	                    .productId(productId)
@@ -367,120 +407,6 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 	        throw new RuntimeException("Error while saving Excel data", e);
 	    }
 	}
-
-//	@Transactional
-//	public void saveExcelDataBackUP(Workbook workbook) {
-//	    try {
-//	        Sheet sheet = workbook.getSheetAt(0);
-//	        Map<String, TblCodDependoReport> excelDataMap = new HashMap<>();
-//	        Set<String> hubNamesInSheet = new HashSet<>();
-//
-//	        for (int rowNum = 1; rowNum <= sheet.getLastRowNum(); rowNum++) {
-//	            Row row = sheet.getRow(rowNum);
-//	            if (row == null) continue;
-//
-//	            String hubName = getCellValue(row.getCell(2));
-//	            String collectionDate = getCellValue(row.getCell(10));
-//	            String status = getCellValue(row.getCell(27));
-//	            if (hubName.isEmpty() || collectionDate.isEmpty()) continue;
-//
-//	            hubNamesInSheet.add(hubName);
-//	            String key = hubName + "|" + collectionDate + "|" + status;
-//
-//	            double amountToBeCollected = parseDouble(getCellValue(row.getCell(12)));
-//	            double collected = parseDouble(getCellValue(row.getCell(13)));
-//	            double deposited = parseDouble(getCellValue(row.getCell(14)));
-//	            double diff = parseDouble(getCellValue(row.getCell(26)));
-//
-//	            if (excelDataMap.containsKey(key)) {
-//	                TblCodDependoReport existing = excelDataMap.get(key);
-//	                existing.setAmountToBeCollected(String.valueOf(parseDouble(existing.getAmountToBeCollected()) + amountToBeCollected));
-//	                existing.setCollected(String.valueOf(parseDouble(existing.getCollected()) + collected));
-//	                existing.setDeposited(String.valueOf(parseDouble(existing.getDeposited()) + deposited));
-//	                existing.setDiff(String.valueOf(parseDouble(existing.getDiff()) + diff));
-//	            } else {
-//	                TblCodDependoReport report = TblCodDependoReport.builder()
-//	                        .srNo(getCellValue(row.getCell(0)))
-//	                        .month(getCellValue(row.getCell(1)))
-//	                        .hubName(hubName)
-//	                        .finalHubName(getCellValue(row.getCell(3)))
-//	                        .pickupCode(getCellValue(row.getCell(4)))
-//	                        .partnerName(getCellValue(row.getCell(5)))
-//	                        .zone(getCellValue(row.getCell(6)))
-//	                        .fy(getCellValue(row.getCell(7)))
-//	                        .hubType(getCellValue(row.getCell(8)))
-//	                        .transactionId(getCellValue(row.getCell(9)))
-//	                        .collectionDate(collectionDate)
-//	                        .monthAgeing(getCellValue(row.getCell(11)))
-//	                        .amountToBeCollected(String.valueOf(amountToBeCollected))
-//	                        .collected(String.valueOf(collected))
-//	                        .deposited(String.valueOf(deposited))
-//	                        .diff(String.valueOf(diff))
-//	                        .status(status)
-//	                        .lineStatus(getCellValue(row.getCell(28)))
-//	                        .bankDate1(getCellValue(row.getCell(29)))
-//	                        .ref1(getCellValue(row.getCell(30)))
-//	                        .bankDate2(getCellValue(row.getCell(31)))
-//	                        .ref2(getCellValue(row.getCell(32)))
-//	                        .pmBankDate3(getCellValue(row.getCell(33)))
-//	                        .pmRef3(getCellValue(row.getCell(34)))
-//	                        .myntraSynergyBankDate1(getCellValue(row.getCell(35)))
-//	                        .myntraSynergyRef1(getCellValue(row.getCell(36)))
-//	                        .dnDate(getCellValue(row.getCell(37)))
-//	                        .dnRef(getCellValue(row.getCell(38)))
-//	                        .codToUnidentifiedContraPm(getCellValue(row.getCell(39)))
-//	                        .bankDate3(getCellValue(row.getCell(40)))
-//	                        .ref3(getCellValue(row.getCell(41)))
-//	                        .lostShipmentTrackingId(getCellValue(row.getCell(42)))
-//	                        .lostShipmentRecoveryAccountingStatus(getCellValue(row.getCell(43)))
-//	                        .interestOnDnCnAccountingStatus(getCellValue(row.getCell(44)))
-//	                        .pmCreditAccountingStatus(getCellValue(row.getCell(45)))
-//	                        .kiranaToCodAccountingStatus(getCellValue(row.getCell(46)))
-//	                        .codToUnidentifiedContraPmAccountingStatus(getCellValue(row.getCell(47)))
-//	                        .dnAppliedAccountingStatus(getCellValue(row.getCell(48)))
-//	                        .dnReversalAccountingStatus(getCellValue(row.getCell(49)))
-//	                        .hubRemarks(getCellValue(row.getCell(50)))
-//	                        .hubCategory(getCellValue(row.getCell(51)))
-//	                        .depositSlipNumber(getCellValue(row.getCell(52)))
-//	                        .depositDate(getCellValue(row.getCell(53)))
-//	                        .depositAmount(getCellValue(row.getCell(54)))
-//	                        .eklFinRemarks(getCellValue(row.getCell(55)))
-//	                        .bankCreditAmountMerged(getCellValue(row.getCell(56)))
-//	                        .kiranaAmount(getCellValue(row.getCell(57)))
-//	                        .posAmt(getCellValue(row.getCell(58)))
-//	                        .kiranaAccountingStatus(getCellValue(row.getCell(59)))
-//	                        .accountedTillJul23(getCellValue(row.getCell(60)))
-//	                        .myntraSynergyAccountingStatus(getCellValue(row.getCell(61)))
-//	                        .finalGrouping(getCellValue(row.getCell(62)))
-//	                        .responsibility(getCellValue(row.getCell(63)))
-//	                        .spoc(getCellValue(row.getCell(64)))
-//	                        .recoverableNonRecoverable(getCellValue(row.getCell(65)))
-//	                        .lineOfBusiness(getCellValue(row.getCell(66)))
-//	                        .bank(getCellValue(row.getCell(67)))
-//	                        .partnerName1(getCellValue(row.getCell(68)))
-//	                        .aa(getCellValue(row.getCell(69)))
-//	                        .clientName("flipkart")
-//	                        .build();
-//
-//	                excelDataMap.put(key, report);
-//	            }
-//	        }
-//
-//	        // Step: Delete all records for hubNames present in Excel sheet
-//	        if (!hubNamesInSheet.isEmpty()) {
-//	            dependoReportRepository.deleteAllByHubNameIn(new ArrayList<>(hubNamesInSheet));
-//	        }
-//
-//	        // Save new data
-//	        dependoReportRepository.saveAll(excelDataMap.values());
-//
-//	        System.out.println("Excel data import completed successfully.");
-//	    } catch (Exception e) {
-//	        e.printStackTrace();
-//	        throw new RuntimeException("Error while saving Excel data", e);
-//	    }
-//	}
-
 
 	private String getCellValue(Cell cell) {
 		if (cell == null)
@@ -518,5 +444,48 @@ public class EmailExcelProcessorServiceImpl implements EmailExcelProcessorServic
 			return 0.0;
 		}
 	}
+	
+	public String processAllExcelFiles(String folderPath) {
+		if(folderPath.isBlank() || folderPath.isEmpty() || folderPath == null) {
+			System.out.println("Enter the folder Path");
+			return "Enter the folder Path"; 
+		}
+	    File folder = new File(folderPath);
+	    if (!folder.exists() || !folder.isDirectory()) {
+	        System.out.println("❌ Invalid folder path: " + folderPath);
+	        return "❌ Invalid folder path: " + folderPath;
+	    }
+
+	    // Get all .xlsx files
+	    File[] excelFiles = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".xlsx"));
+	    if (excelFiles == null || excelFiles.length == 0) {
+	        System.out.println("⚠️ No Excel files found in folder: " + folderPath);
+	        return "⚠️ No Excel files found in folder: " + folderPath;
+	    }
+
+	    System.out.println("📂 Found " + excelFiles.length + " Excel files. Starting import...");
+
+	    int processedCount = 0;
+	    for (File excelFile : excelFiles) {
+	        System.out.println("\n📘 Processing file: " + excelFile.getName());
+	        try (FileInputStream fis = new FileInputStream(excelFile);
+	             Workbook workbook = new XSSFWorkbook(fis)) {
+
+	            // Your existing DB save logic
+	            saveExcelData(workbook);
+
+	            processedCount++;
+	            System.out.println("✅ Successfully processed: " + excelFile.getName());
+
+	        } catch (IOException e) {
+	            System.err.println("❌ Failed to process file: " + excelFile.getName());
+	            e.printStackTrace();
+	        }
+	    }
+
+	    System.out.println("\n✅ All files processed. Total successful: " + processedCount + "/" + excelFiles.length);
+	    return "\n✅ All files processed. Total successful: " + processedCount + "/" + excelFiles.length;
+	}
+	
 
 }

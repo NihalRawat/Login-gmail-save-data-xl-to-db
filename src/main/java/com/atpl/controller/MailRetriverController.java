@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.atpl.mail.service.EmailExcelProcessorService;
@@ -22,5 +23,16 @@ public class MailRetriverController {
 	public String readExcelFromEmail() {
 	    emailExcelProcessorService.downloadAndProcessAttachment();
 	    return "Excel processed and data saved!";
+	}
+	
+	@GetMapping("/folder-path-name")
+	public String readFolderAndProcessExcelFiles(@RequestParam String folderPath) {
+		try {
+			String msg= emailExcelProcessorService.processAllExcelFiles(folderPath);
+			return msg;
+		}catch(Exception ex) {
+			ex.printStackTrace();
+			return "Error"+ex;
+		}
 	}
 }
